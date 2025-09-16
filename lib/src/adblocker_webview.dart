@@ -189,13 +189,6 @@ class _AdBlockerWebviewState extends State<AdBlockerWebview> {
       ),
       onUrlChange: (change) => widget.onUrlChanged?.call(change.url),
     );
-    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
-      final WebKitNavigationDelegate webKitDelegate =
-          navigationDelegate.platform as WebKitNavigationDelegate;
-    } else if (WebViewPlatform.instance is AndroidWebViewPlatform) {
-      final AndroidNavigationDelegate androidDelegate =
-          navigationDelegate.platform as AndroidNavigationDelegate;
-    }
     _webViewController.setNavigationDelegate(navigationDelegate);
   }
 

@@ -1,3 +1,7 @@
+## 2.1.0
+* Added `stoploading` method to AdblockerWebviewController
+* Disable automatic media playback
+
 ## 2.0.0-beta
 * Added support for easylist and adguard filters
 * Added support for resource rules parsing
