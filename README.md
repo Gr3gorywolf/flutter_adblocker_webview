@@ -6,7 +6,7 @@ A Flutter WebView implementation that blocks ads and trackers using EasyList and
 
 ## Features
 
-- 🚫 Basic ad and tracker blocking using EasyList and AdGuard filters
+- 🚫 Ad and tracker blocking using EasyList and AdGuard filters
 - 🌐 Supports both URL and HTML content loading
 - 🔄 Navigation control (back, forward, refresh)
 - 📱 User agent strings for Android and iOS
@@ -14,6 +14,8 @@ A Flutter WebView implementation that blocks ads and trackers using EasyList and
 - 🎯 Domain-based filtering and element hiding
 - 🔍 Detailed logging of blocked resources
 - 💉 Custom JavaScript injection support
+- ✅ Whitelist/allowlist domains
+- 📊 Blocking statistics tracking
 
 ## Getting Started
 
@@ -23,7 +25,7 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adblocker_webview: ^2.1.0
+  adblocker_webview: ^2.2.0
 ```
 
 ### Basic Usage
@@ -33,7 +35,11 @@ import 'package:adblocker_webview/adblocker_webview.dart';
 
 // Initialize the controller (preferably in main())
 void main() async {
-  await AdBlockerWebviewController.instance.initialize();
+  await AdBlockerWebviewController.instance.initialize(
+    FilterConfig(
+      filterTypes: [FilterType.easyList, FilterType.adGuard],
+    ),
+  );
   runApp(MyApp());
 }
 
@@ -78,7 +84,46 @@ if (await controller.canGoBack()) {
 controller.reload();
 
 // Execute JavaScript
-controller.runJavaScript('console.log("Hello from Flutter!")');
+controller.runScript('console.log("Hello from Flutter!")');
+```
+
+### Whitelist/Blacklist Domains
+
+Disable ad blocking for specific trusted domains:
+
+```dart
+// Via configuration
+await AdBlockerWebviewController.instance.initialize(
+  FilterConfig(
+    filterTypes: [FilterType.easyList],
+    allowedDomains: ['trusted-site.com', 'partner.com'],
+    blockedDomains: ['ads.example.com'],
+  ),
+);
+
+// Dynamically at runtime
+controller.addAllowedDomain('example.com');
+controller.removeAllowedDomain('example.com');
+
+// Check if a domain is whitelisted
+if (controller.isAllowedDomain('https://example.com')) {
+  print('Ads allowed on this site');
+}
+```
+
+### Statistics Tracking
+
+Track blocked resources and CSS rules applied:
+
+```dart
+// Get statistics
+final stats = controller.statistics;
+print('Blocked: ${stats.blockedResourceCount} resources');
+print('CSS rules applied: ${stats.cssRulesAppliedCount}');
+print('Top blocked domains: ${stats.blockedDomains}');
+
+// Reset statistics (e.g., when navigating to new page)
+controller.resetStatistics();
 ```
 
 ## Configuration
@@ -111,24 +156,60 @@ AdBlockerWebview(
 ## Features in Detail
 
 ### Ad Blocking
-- Basic support for EasyList and AdGuard filter lists
-- Blocks common ad resources before they load
+- EasyList and AdGuard filter list support
+- Blocks resources before they load
 - Hides ad elements using CSS rules
-- Supports exception rules for whitelisting
+- Exception rules for whitelisting
+
+### Whitelist/Blacklist Support
+- Configure allowed domains via `FilterConfig`
+- Configure blocked domains via `FilterConfig`
+- Add/remove domains at runtime
+- Subdomain matching (e.g., `example.com` allows `sub.example.com`)
+
+### Statistics
+- Track blocked resource count
+- Track CSS rules applied
+- Per-domain blocking statistics
+- Reset statistics on demand
 
 ### Resource Blocking
-- Blocks common trackers and unwanted resources
+- Blocks trackers and unwanted resources
 - Early blocking for better performance
-- Basic domain-based filtering
-- Exception handling for whitelisted domains
+- Domain-based filtering
+- Exception handling for allowed domains
 
 ### Element Hiding
-- Hides common ad containers and placeholders
+- Hides ad containers and placeholders
 - CSS-based element hiding
-- Basic domain-specific rules support
-- Batch processing for better performance
+- Domain-specific rules
+- Batch processing for performance
 
 ## Migration Guide
+
+### Migrating from 2.0.x to 2.2.x
+
+1. **Controller Initialization**
+   ```dart
+   // Old (<= 2.2.0)
+   await AdBlockerWebviewController.instance.initialize(
+     FilterConfig(
+       filterTypes: [FilterType.easyList, FilterType.adGuard],
+     ),
+     []
+   );
+   ```
+
+    ```dart
+    // New (>= 2.2.0)
+    await AdBlockerWebviewController.instance.initialize(
+      FilterConfig(
+        filterTypes: [FilterType.easyList, FilterType.adGuard],
+        blockedDomains: ['ads.example.com'],
+      ),
+    );
+    ```
+
 
 ### Migrating from 1.2.0 to 2.0.0
 
@@ -140,11 +221,12 @@ AdBlockerWebview(
    final controller = AdBlockerWebviewController();
    await controller.initialize();
 
-   // New (2.0.0-beta)
+   // New (>= 2.0.0)
    await AdBlockerWebviewController.instance.initialize(
      FilterConfig(
        filterTypes: [FilterType.easyList, FilterType.adGuard],
      ),
+     []
    );
    ```
 
@@ -156,7 +238,7 @@ AdBlockerWebview(
      // ...
    )
 
-   // New (2.0.0-beta)
+   // New (>= 2.0.0)
    AdBlockerWebview(
      url: Uri.parse("https://example.com"),
      // ...
@@ -171,7 +253,7 @@ AdBlockerWebview(
      additionalHostsToBlock: ['ads.example.com'],
    );
 
-   // New (2.0.0-beta)
+   // New (>= 2.0.0)
    // Use FilterConfig for configuration
    await AdBlockerWebviewController.instance.initialize(
      FilterConfig(
@@ -185,7 +267,7 @@ AdBlockerWebview(
    // Old (1.2.0)
    onTitleChanged: (title) { ... }
 
-   // New (2.0.0-beta)
+   // New (>= 2.0.0)
    // Use onUrlChanged instead
    onUrlChanged: (url) { ... }
    ```
@@ -206,7 +288,7 @@ AdBlockerWebview(
 1. Update the package version in `pubspec.yaml`:
    ```yaml
    dependencies:
-     adblocker_webview: ^2.0.0
+     adblocker_webview: ^2.2.0
    ```
 
 2. Replace controller initialization with singleton pattern

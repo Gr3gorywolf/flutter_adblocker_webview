@@ -14,7 +14,7 @@ import 'package:adblocker_webview/src/internal_adblocker_webview_controller.dart
 ///   @override
 ///   void initState() {
 ///     super.initState();
-///     _adBlockerWebviewController.initialize(config, []);
+///     _adBlockerWebviewController.initialize(config);
 ///     /// ... Other code here.
 ///   }
 /// ```
@@ -33,11 +33,11 @@ abstract interface class AdBlockerWebviewController
     return _instance!;
   }
 
-  /// Initializes the controller
-  Future<void> initialize(
-    FilterConfig filterConfig,
-    List<ResourceRule> additionalResourceRules,
-  );
+  /// Initializes the controller with the given filter configuration
+  ///
+  /// The [FilterConfig] contains filter types to load, along with
+  /// optional allowedDomains and blockedDomains lists.
+  Future<void> initialize(FilterConfig filterConfig);
 
   /// Returns decision of if the webview can go back
   Future<bool> canGoBack();
@@ -48,9 +48,9 @@ abstract interface class AdBlockerWebviewController
   // Clears the cache of webview
   Future<void> clearCache();
 
-  /// Returns the banned resource rules list.
+  /// Returns the all resource rules list.
   /// This list items are populated after calling the [initialize] method
-  UnmodifiableListView<ResourceRule> get bannedResourceRules;
+  UnmodifiableListView<ResourceRule> get allResourceRules;
 
   // Returns the title of currently loaded webpage
   Future<String?> getTitle();
@@ -80,5 +80,44 @@ abstract interface class AdBlockerWebviewController
 
   /// Runs the given script
   Future<void> runScript(String script);
-  
+
+  /// Returns the set of allowed (whitelisted) domains
+  Set<String> get allowedDomains;
+
+  /// Adds a domain to the whitelist
+  ///
+  /// Resources from this domain will not be blocked.
+  void addAllowedDomain(String domain);
+
+  /// Removes a domain from the whitelist
+  ///
+  /// Returns true if the domain was removed.
+  bool removeAllowedDomain(String domain);
+
+  /// Checks if a domain is in the whitelist
+  bool isAllowedDomain(String urlOrDomain);
+
+
+  /// Returns the set of blocked domains (custom block list)
+  Set<String> get blockedDomains;
+
+  /// Adds a domain to the custom block list
+  ///
+  /// Resources from this domain will always be blocked.
+  void addBlockedDomain(String domain);
+
+  /// Removes a domain from the custom block list
+  ///
+  /// Returns true if the domain was removed.
+  bool removeBlockedDomain(String domain);
+
+  /// Checks if a domain is in the custom block list
+  bool isBlockedDomain(String urlOrDomain);
+
+
+  /// Returns the blocking statistics
+  BlockingStatistics get statistics;
+
+  /// Resets the blocking statistics
+  void resetStatistics();
 }

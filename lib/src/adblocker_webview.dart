@@ -74,7 +74,7 @@ class _AdBlockerWebviewState extends State<AdBlockerWebview> {
   late final WebViewController _webViewController;
 
   late Future<void> _depsFuture;
-  final List<ResourceRule> _urlsToBlock = [];
+  final List<ResourceRule> _blockingRules = [];
 
   @override
   void initState() {
@@ -83,9 +83,9 @@ class _AdBlockerWebviewState extends State<AdBlockerWebview> {
   }
 
   Future<void> _init() async {
-    _urlsToBlock
+    _blockingRules
       ..clear()
-      ..addAll(widget.adBlockerWebviewController.bannedResourceRules);
+      ..addAll(widget.adBlockerWebviewController.allResourceRules);
 
     late final PlatformWebViewControllerCreationParams params;
     if (WebViewPlatform.instance is WebKitWebViewPlatform) {
@@ -164,8 +164,14 @@ class _AdBlockerWebviewState extends State<AdBlockerWebview> {
           // Inject resource blocking script as early as possible
           unawaited(
             _webViewController.runJavaScript(
-              getResourceLoadingBlockerScript(_urlsToBlock),
+              getResourceLoadingBlockerScript(_blockingRules),
             ),
+          );
+          // Apply element hiding after page load
+          final cssRules = widget.adBlockerWebviewController
+              .getCssRulesForWebsite(url);
+          unawaited(
+            _webViewController.runJavaScript(generateHidingScript(cssRules)),
           );
         }
         widget.onLoadStart?.call(url);

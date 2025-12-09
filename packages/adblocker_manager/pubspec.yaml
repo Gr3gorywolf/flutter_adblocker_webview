@@ -1,17 +1,19 @@
 name: adblocker_manager
 description: "Manager package for handling multiple ad-blocking filters"
-version: 1.0.0
+version: 1.1.0
 homepage: https://github.com/islamdidarmd/flutter_adblocker_webview
 
 environment:
-  sdk: ^3.7.0
-  flutter: '>=3.29.0'
-
+  sdk: ^3.10.1
 resolution: workspace
 
 dependencies:
-  adblocker_core: ^0.1.0
+  adblocker_core: ^1.1.0
   flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
     sdk: flutter
 
 flutter:

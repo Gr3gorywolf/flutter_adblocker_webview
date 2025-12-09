@@ -5,11 +5,9 @@ import 'browser_screen.dart';
 import 'url_input_section.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await AdBlockerWebviewController.instance.initialize(
-    FilterConfig(
-      filterTypes: [FilterType.easyList, FilterType.adGuard],
-    ),
-    [],
+    FilterConfig(filterTypes: [FilterType.easyList, FilterType.adGuard]),
   );
   runApp(const ExampleApp());
 }
@@ -70,10 +68,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 const Text(
                   'Enter a URL to test ad blocking',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 UrlInputSection(

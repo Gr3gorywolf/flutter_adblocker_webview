@@ -1,3 +1,31 @@
+## 2.2.0
+
+**Breaking Changes**
+* Controller initialization added `blockedDomains` parameter in `FilterConfig` instead of separate list
+* Minimum Supported flutter version is 3.38.0
+* Minimum Supported dart version is 3.10.1
+
+### New Features
+* **Whitelist/Allowlist Support**: Disable ad blocking for specific trusted domains
+  * Configure via `FilterConfig.allowedDomains`
+  * Runtime control with `addAllowedDomain()`, `removeAllowedDomain()`, `isAllowedDomain()`
+  * Subdomain matching (e.g., `example.com` allows `sub.example.com`)
+
+* **Blocking Statistics**: Track blocked resources and CSS rules
+  * `statistics.blockedResourceCount` - total blocked resources
+  * `statistics.cssRulesAppliedCount` - CSS rules applied
+  * `statistics.blockedDomains` - per-domain breakdown
+  * `resetStatistics()` to clear counters
+
+### Performance Improvements
+
+### Developer Experience
+* Enhanced example app with:
+  * Shield icon badge showing blocked count
+  * Statistics bottom sheet with detailed breakdown
+  * Top blocked domains list
+
+
 ## 2.1.0
 * Added `stoploading` method to AdblockerWebviewController
 * Disable automatic media playback

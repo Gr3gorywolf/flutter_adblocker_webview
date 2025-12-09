@@ -1,16 +1,17 @@
 name: example
 description: An example Flutter project for adblocker webview
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.10.1
+
+resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.5
   adblocker_webview:
     path: ../
 

@@ -43,6 +43,31 @@ void main() {
           isFalse,
         );
       });
+
+      test('does not block domain root when rule has path', () async {
+        final pathFilter = AdblockerFilter.createInstance();
+        await pathFilter.init('''
+          ||google.com/adsense/domains/caf.js
+          ||example.com/ads/banner.js
+        ''');
+
+        // Should NOT block domain homepage
+        expect(pathFilter.shouldBlockResource('https://google.com/'), isFalse);
+        expect(pathFilter.shouldBlockResource('https://google.com'), isFalse);
+        expect(pathFilter.shouldBlockResource('https://example.com/'), isFalse);
+
+        // Should block the specific paths
+        expect(
+          pathFilter.shouldBlockResource(
+            'https://google.com/adsense/domains/caf.js',
+          ),
+          isTrue,
+        );
+        expect(
+          pathFilter.shouldBlockResource('https://example.com/ads/banner.js'),
+          isTrue,
+        );
+      });
     });
 
     group('CSS rules', () {
@@ -61,9 +86,10 @@ void main() {
         expect(rules, isNot(contains('.advertisement')));
       });
 
-      test('returns empty list for non-matching domain', () {
+      test('returns global exclusion rules for non-excluded domains', () {
+        // ~news.com##.advertisement means apply to all domains EXCEPT news.com
         final rules = filter.getCSSRulesForWebsite('https://random.com');
-        expect(rules, isEmpty);
+        expect(rules, contains('.advertisement'));
       });
     });
 

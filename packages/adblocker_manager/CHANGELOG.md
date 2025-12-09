@@ -1,3 +1,5 @@
+## 1.1.0
+* Improve performance of rule matching algorithm
 ## 1.0.0
 
 * Initial release

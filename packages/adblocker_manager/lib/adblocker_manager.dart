@@ -1,5 +1,6 @@
 export 'package:adblocker_core/adblocker_core.dart';
 
+export 'src/blocking_statistics.dart';
 export 'src/config/filter_config.dart';
 export 'src/config/filter_type.dart';
 export 'src/exception/filter_exception.dart';

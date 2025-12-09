@@ -3,30 +3,30 @@ import 'dart:collection';
 import 'package:adblocker_webview/adblocker_webview.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-///Implementation for [AdBlockerWebviewController]
+/// Implementation for [AdBlockerWebviewController]
 class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
   AdBlockerWebviewControllerImpl();
 
   WebViewController? _webViewController;
   final AdblockFilterManager _adBlockManager = AdblockFilterManager();
-  final _bannedResourceRules = <ResourceRule>[];
+  final _allResourceRules = <ResourceRule>[];
+  bool _isInitialized = false;
+
+  /// Returns whether the controller has been initialized
+  bool get isInitialized => _isInitialized;
 
   @override
-  Future<void> initialize(
-    FilterConfig filterConfig,
-    List<ResourceRule> additionalResourceRules,
-  ) async {
+  Future<void> initialize(FilterConfig filterConfig) async {
     await _adBlockManager.init(filterConfig);
-    _bannedResourceRules
+    _allResourceRules
       ..clear()
-      ..addAll(_adBlockManager.getAllResourceRules())
-      ..addAll(additionalResourceRules);
-
+      ..addAll(_adBlockManager.getAllResourceRules());
+    _isInitialized = true;
   }
 
   @override
-  UnmodifiableListView<ResourceRule> get bannedResourceRules =>
-      UnmodifiableListView(_bannedResourceRules);
+  UnmodifiableListView<ResourceRule> get allResourceRules =>
+      UnmodifiableListView(_allResourceRules);
 
   @override
   void setInternalController(WebViewController controller) {
@@ -35,29 +35,23 @@ class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
 
   @override
   Future<bool> canGoBack() async {
-    if (_webViewController == null) {
-      return false;
-    }
-
-    return _webViewController!.canGoBack();
+    final controller = _webViewController;
+    if (controller == null) return false;
+    return controller.canGoBack();
   }
 
   @override
   Future<bool> canGoForward() async {
-    if (_webViewController == null) {
-      return false;
-    }
-
-    return _webViewController!.canGoForward();
+    final controller = _webViewController;
+    if (controller == null) return false;
+    return controller.canGoForward();
   }
 
   @override
   Future<void> clearCache() async {
-    if (_webViewController == null) {
-      return;
-    }
-
-    return _webViewController!.clearCache();
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.clearCache();
   }
 
   @override
@@ -66,46 +60,37 @@ class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
 
   @override
   Future<String?> getTitle() async {
-    if (_webViewController == null) {
-      return null;
-    }
-
-    return _webViewController!.getTitle();
+    final controller = _webViewController;
+    if (controller == null) return null;
+    return controller.getTitle();
   }
 
   @override
   Future<void> goBack() async {
-    if (_webViewController == null) {
-      return;
-    }
-
-    return _webViewController!.goBack();
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.goBack();
   }
 
   @override
   Future<void> goForward() async {
-    if (_webViewController == null) {
-      return;
-    }
-
-    return _webViewController!.goForward();
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.goForward();
   }
 
   @override
   Future<void> loadUrl(String url) async {
-    if (_webViewController == null) {
-      return;
-    }
-
-    return _webViewController!.loadRequest(Uri.parse(url));
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.loadRequest(Uri.parse(url));
   }
 
   @override
   Future<void> loadData(String data, {String? baseUrl}) async {
-    if (_webViewController == null) {
-      return;
-    }
-    return _webViewController!.loadHtmlString(data, baseUrl: baseUrl);
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.loadHtmlString(data, baseUrl: baseUrl);
   }
 
   @override
@@ -114,27 +99,70 @@ class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
 
   @override
   Future<void> reload() async {
-    if (_webViewController == null) {
-      return;
-    }
-
-    return _webViewController!.reload();
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.reload();
   }
 
   @override
   Future<void> stopLoading() async {
-    if (_webViewController == null) {
-      return;
-    }
-    return _webViewController!.runJavaScript('window.stop();');
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.runJavaScript('window.stop();');
   }
 
   @override
   Future<void> runScript(String script) async {
-    if (_webViewController == null) {
-      return;
-    }
+    final controller = _webViewController;
+    if (controller == null) return;
+    return controller.runJavaScript(script);
+  }
 
-    return _webViewController!.runJavaScript(script);
+
+  @override
+  Set<String> get allowedDomains => _adBlockManager.allowedDomains;
+
+  @override
+  void addAllowedDomain(String domain) =>
+      _adBlockManager.addAllowedDomain(domain);
+
+  @override
+  bool removeAllowedDomain(String domain) =>
+      _adBlockManager.removeAllowedDomain(domain);
+
+  @override
+  bool isAllowedDomain(String urlOrDomain) =>
+      _adBlockManager.isAllowedDomain(urlOrDomain);
+
+
+  @override
+  Set<String> get blockedDomains => _adBlockManager.blockedDomains;
+
+  @override
+  void addBlockedDomain(String domain) =>
+      _adBlockManager.addBlockedDomain(domain);
+
+  @override
+  bool removeBlockedDomain(String domain) =>
+      _adBlockManager.removeBlockedDomain(domain);
+
+  @override
+  bool isBlockedDomain(String urlOrDomain) =>
+      _adBlockManager.isBlockedDomain(urlOrDomain);
+
+  // ===== Statistics Methods =====
+
+  @override
+  BlockingStatistics get statistics => _adBlockManager.statistics;
+
+  @override
+  void resetStatistics() => _adBlockManager.resetStatistics();
+
+  /// Disposes the controller and releases resources
+  Future<void> dispose() async {
+    await _adBlockManager.dispose();
+    _webViewController = null;
+    _allResourceRules.clear();
+    _isInitialized = false;
   }
 }

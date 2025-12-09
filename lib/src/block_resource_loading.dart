@@ -1,169 +1,314 @@
+import 'dart:convert';
 import 'package:adblocker_manager/adblocker_manager.dart';
 
+/// Generates JavaScript for blocking ad resources (XHR, Fetch, Scripts, Images).
+///
+/// Performance optimizations:
+/// - Rules indexed by domain fragments for O(1) lookup
+/// - Exception rules checked via Set for fast lookup
+/// - Minimal logging (debug mode only)
+/// - Fixed XHR override to properly block requests
+/// - Added iframe and WebSocket blocking
 String getResourceLoadingBlockerScript(List<ResourceRule> rules) {
-  // Convert ResourceRules to JavaScript objects
-  final jsRules = rules.map((rule) => '''
-    {
-      url: '${rule.url}',
-      isException: ${rule.isException}
-    }
-  ''',).join(',\n');
-
-  final content = '''
-    window.adBlockerRules = [$jsRules];
-    
-    function setupResourceBlocking() {
-        const rules = window.adBlockerRules || [];
-    
-    function domainMatches(rule, target) {
-        return rule === target || target.includes(rule);
-    }
-    
-    function isBlocked(url, originType) {
-        // First check exception rules
-        const isException = rules.some(rule => {
-            return rule.isException && domainMatches(rule.url, url);
-        });
-        
-        if (isException) {
-            console.log(`[EXCEPTION][\${originType}] \${url}`, {
-                domain: url,
-                currentDomain: window.location.hostname
-            });
-            return false;
+  // Separate and encode rules
+  // For simplicity and performance in JS, we only send necessary data
+  final blockRulesData = rules
+      .where((r) => !r.isException)
+      .map((r) {
+        if (r.resourceTypes == null &&
+            r.domains == null &&
+            !r.isImportant &&
+            !r.isThirdParty) {
+          return "'${_escapeJs(r.url)}'";
         }
+        // Complex rule
+        // t: types, d: domains, i: important, tp: thirdParty
+        final Map<String, dynamic> map = {'u': r.url};
+        if (r.resourceTypes != null) map['t'] = r.resourceTypes;
+        if (r.domains != null) map['d'] = r.domains;
+        // Optimization: don't send false flags
+        if (r.isImportant) map['i'] = 1;
+        if (r.isThirdParty) map['tp'] = 1;
+        return jsonEncode(map);
+      })
+      .join(',');
 
-        // Then check blocking rules
-        const blockedRule = rules.find(rule => {
-            return !rule.isException && domainMatches(rule.url, url);
-        });
-
-        if (blockedRule) {
-            console.log(`[BLOCKED][\${originType}] \${url}`, {
-                domain: url,
-                rule: blockedRule.url,
-                currentDomain: window.location.hostname
-            });
-            return true;
-        }
-        return false;
-    }
-
-    // Override XMLHttpRequest
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (method, url) {
-        if (isBlocked(url, 'XHR')) {
-            return new Proxy(new XMLHttpRequest(), {
-                get: function(target, prop) {
-                    if (prop === 'send') return function() {};
-                    return target[prop];
-                }
-            });
-        }
-        return originalXHROpen.apply(this, arguments);
-    };
-
-    // Override Fetch API
-    const originalFetch = window.fetch;
-    window.fetch = function (resource, init) {
-        const url = resource instanceof Request ? resource.url : resource;
-        if (isBlocked(url, 'Fetch')) {
-            return Promise.resolve(new Response('', {
-                status: 200,
-                statusText: 'OK'
-            }));
-        }
-        return originalFetch.apply(this, arguments);
-    };
-
-    // Block dynamic script loading
-    const originalCreateElement = document.createElement;
-    document.createElement = function (tagName) {
-        const element = originalCreateElement.apply(document, arguments);
-        
-        if (tagName.toLowerCase() === 'script') {
-            const originalSetAttribute = element.setAttribute;
-            element.setAttribute = function(name, value) {
-                if (name === 'src' && isBlocked(value, 'Script')) {
-                    return;
-                }
-                return originalSetAttribute.call(this, name, value);
-            };
-        }
-        
-        return element;
-    };
-
-    // Block image loading
-    const originalImageSrc = Object.getOwnPropertyDescriptor(Image.prototype, 'src');
-    Object.defineProperty(Image.prototype, 'src', {
-        get: function() {
-            return originalImageSrc.get.call(this);
-        },
-        set: function(value) {
-            if (isBlocked(value, 'Image')) {
-                return;
-            }
-            originalImageSrc.set.call(this, value);
-        }
-    });
-
-    console.log('[AdBlocker] Resource blocking initialized with', rules.length, 'rules');
-    }
-  ''';
+  final exceptionRulesData = rules
+      .where((r) => r.isException)
+      .map((r) => "'${_escapeJs(r.url)}'")
+      .join(',');
 
   return '''
-    (function () {
-        // Listening for the appearance of the body element to execute the script as early as possible
-        const config = { attributes: false, childList: true, subtree: true };
-        const callback = function (mutationsList, observer) {
-            for (const mutation of mutationsList) {
-                if (mutation.type === 'childList') {
-                    if (document.getElementsByTagName('body')[0]) {
-                        console.log('[AdBlocker] Body element detected, initializing blocking');
-                        script();
-                        observer.disconnect();
-                    }
-                    break;
-                }
-            }
+(function() {
+  'use strict';
+  
+  const DEBUG = false;
+  // blockUrls contains strings (simple rules) or objects (complex rules)
+  const blockRules = [$blockRulesData];
+  const exceptionUrls = new Set([$exceptionRulesData]);
+  
+  // Build index for fast lookups
+  const blockIndex = new Map();
+  // Separate simple strings from complex objects for performance
+  const simpleRules = [];
+  const complexRules = [];
+
+  blockRules.forEach(rule => {
+    if (typeof rule === 'string') {
+      simpleRules.push(rule);
+      indexRule(rule, blockIndex, rule);
+    } else {
+      complexRules.push(rule);
+      indexRule(rule.u, blockIndex, rule);
+    }
+  });
+  
+  function indexRule(urlPart, index, ruleRef) {
+    const parts = urlPart.split('.');
+    parts.forEach(part => {
+      if (part.length > 2) {
+        if (!index.has(part)) index.set(part, []);
+        index.get(part).push(ruleRef);
+      }
+    });
+  }
+  
+  function isException(url) {
+    const lowerUrl = url.toLowerCase();
+    for (const exc of exceptionUrls) {
+      if (lowerUrl.includes(exc)) return true;
+    }
+    return false;
+  }
+  
+  function isDomainMatch(domain, ruleDomain) {
+    if (domain === ruleDomain) return true;
+    if (domain.endsWith('.' + ruleDomain)) return true;
+    return false;
+  }
+
+  function checkRule(rule, url, type, domain) {
+    const ruleUrl = typeof rule === 'string' ? rule : rule.u;
+    if (!url.includes(ruleUrl)) return false;
+    
+    if (typeof rule === 'string') return true;
+    
+    // Check Resource Type
+    if (rule.t && type) {
+      if (!rule.t.includes(type)) return false;
+    }
+
+    // Check Third Party
+    if (rule.tp) {
+       try {
+         const targetHost = new URL(url).hostname;
+         const pageHost = window.location.hostname;
+         // Simple third-party check: domain suffix mismatch
+         // This is a heuristic; proper TLD matching is hard in pure JS without a huge list
+         if (isDomainMatch(targetHost, pageHost)) return false; 
+       } catch(e) {}
+    }
+    
+    // Check Domains (simplified)
+    if (rule.d) {
+       const pageHost = window.location.hostname;
+       let matched = false;
+       for (const d of rule.d) {
+         if (d.startsWith('~')) {
+           const ruleDomain = d.substring(1);
+           if (isDomainMatch(pageHost, ruleDomain)) return false; // Explicit exclusion
+         } else {
+           if (isDomainMatch(pageHost, d)) matched = true;
+         }
+       }
+       // If there were positive domain constraints, we must have matched at least one
+       const hasPositive = rule.d.some(d => !d.startsWith('~'));
+       if (hasPositive && !matched) return false;
+    }
+
+    return true;
+  }
+
+  function shouldBlock(url, type) {
+    if (!url || typeof url !== 'string') return false;
+    const lowerUrl = url.toLowerCase();
+    
+    // Fast path: check exceptions first
+    if (isException(lowerUrl)) {
+      if (DEBUG) console.log('[AdBlocker] Exception:', url);
+      return false;
+    }
+    
+    const domain = window.location.hostname; // current page domain for context
+
+    // Check against index for faster matching
+    const urlParts = lowerUrl.split(/[./]/);
+    for (const part of urlParts) {
+      const candidates = blockIndex.get(part);
+      if (candidates) {
+        for (const rule of candidates) {
+          if (checkRule(rule, lowerUrl, type, domain)) {
+             if (DEBUG) console.log('[AdBlocker] Blocked:', url, type);
+             return true;
+          }
+        }
+      }
+    }
+    
+    // Fallback: linear check for simple rules not indexed
+    // (Actual logic above indexes everything > 2 chars, so this is just cleanup for very short rules if any)
+    for (const rule of simpleRules) {
+      if (lowerUrl.includes(rule)) {
+        if (DEBUG) console.log('[AdBlocker] Blocked:', url, type);
+        return true;
+      }
+    }
+    
+    for (const rule of complexRules) {
+      if (checkRule(rule, lowerUrl, type, domain)) {
+         if (DEBUG) console.log('[AdBlocker] Blocked:', url, type);
+         return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  // Override XMLHttpRequest
+  const OrigXHR = window.XMLHttpRequest;
+  window.XMLHttpRequest = function() {
+    const xhr = new OrigXHR();
+    const origOpen = xhr.open.bind(xhr);
+    
+    xhr.open = function(method, url, ...args) {
+      if (shouldBlock(url, 'xmlhttprequest')) {
+        // Block by making it a no-op
+        xhr.send = () => {};
+        xhr.abort = () => {};
+        Object.defineProperty(xhr, 'status', { value: 0 });
+        Object.defineProperty(xhr, 'readyState', { value: 4 });
+        return;
+      }
+      return origOpen(method, url, ...args);
+    };
+    
+    return xhr;
+  };
+  window.XMLHttpRequest.prototype = OrigXHR.prototype;
+  
+  // Override Fetch API
+  const origFetch = window.fetch;
+  window.fetch = function(resource, init) {
+    const url = resource instanceof Request ? resource.url : String(resource);
+    if (shouldBlock(url, 'xmlhttprequest')) {
+      // Return a Promise that never resolves (or resolves empty) to simulate network failure/empty response
+      // Commonly, adblockers return an empty 200 OK or a network error.
+      // We'll return an empty 200 to avoid console noise, or maybe a 403?
+      // uBlock Origin often redirects to a 1x1 gif or empty text.
+      return Promise.resolve(new Response('', { 
+        status: 200, 
+        statusText: 'Blocked' 
+      }));
+    }
+    return origFetch.apply(this, arguments);
+  };
+  
+  // Override Navigator.sendBeacon
+  if (navigator.sendBeacon) {
+    const origSendBeacon = navigator.sendBeacon;
+    navigator.sendBeacon = function(url, data) {
+      if (shouldBlock(url, 'ping')) {
+        if (DEBUG) console.log('[AdBlocker] Blocked Beacon:', url);
+        return true; // sendBeacon returns true if queued, we lie to the caller
+      }
+      return origSendBeacon.call(navigator, url, data);
+    };
+  }
+  
+  // Override createElement for script/iframe blocking
+  const origCreate = document.createElement.bind(document);
+  document.createElement = function(tag) {
+    const el = origCreate(tag);
+    const lowerTag = tag.toLowerCase();
+    
+    if (lowerTag === 'script') {
+       const origSetAttr = el.setAttribute.bind(el);
+       el.setAttribute = function(name, value) {
+         if (name === 'src' && shouldBlock(value, 'script')) return;
+         return origSetAttr(name, value);
+       };
+       Object.defineProperty(el, 'src', {
+          set: function(v) {
+             if (shouldBlock(v, 'script')) return;
+             el.setAttribute('src', v);
+          },
+          get: () => el.getAttribute('src') || '',
+          configurable: true
+       });
+    } else if (lowerTag === 'iframe') {
+        const origSetAttr = el.setAttribute.bind(el);
+        el.setAttribute = function(name, value) {
+          if (name === 'src' && shouldBlock(value, 'subdocument')) return;
+          return origSetAttr(name, value);
         };
-        const observer = new MutationObserver(callback);
-        observer.observe(document, config);
+       Object.defineProperty(el, 'src', {
+          set: function(v) {
+             if (shouldBlock(v, 'subdocument')) return;
+             el.setAttribute('src', v);
+          },
+          get: () => el.getAttribute('src') || '',
+          configurable: true
+       });
+    }
+    
+    return el;
+  };
+  
+  // Override Image src
+  const imgDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  if (imgDesc) {
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      get: function() { return imgDesc.get.call(this); },
+      set: function(v) {
+        if (shouldBlock(v, 'image')) return;
+        imgDesc.set.call(this, v);
+      },
+      configurable: true
+    });
+  }
+  
+  // Override WebSocket
+  const OrigWS = window.WebSocket;
+  if (OrigWS) {
+    window.WebSocket = function(url, protocols) {
+      if (shouldBlock(url, 'websocket')) {
+        return {
+          send: () => { throw new Error('Blocked'); },
+          close: () => {},
+          readyState: 3, // CLOSED
+          addEventListener: () => {},
+          removeEventListener: () => {}
+        };
+      }
+      return protocols ? new OrigWS(url, protocols) : new OrigWS(url);
+    };
+    window.WebSocket.prototype = OrigWS.prototype;
+    window.WebSocket.CONNECTING = 0;
+    window.WebSocket.OPEN = 1;
+    window.WebSocket.CLOSING = 2;
+    window.WebSocket.CLOSED = 3;
+  }
+  
+  if (DEBUG) console.log('[AdBlocker] Blocking enabled');
+})();
+''';
+}
 
-        const onReadystatechange = function () {
-            if (document.readyState == 'interactive') {
-                script();
-            }
-        }
-
-        const addListeners = function () {
-            document.addEventListener('readystatechange', onReadystatechange);
-            document.addEventListener('DOMContentLoaded', script, false);
-            window.addEventListener('load', script);
-        }
-
-        const removeListeners = function () {
-            document.removeEventListener('readystatechange', onReadystatechange);
-            document.removeEventListener('DOMContentLoaded', script, false);
-            window.removeEventListener('load', script);
-        }
-
-        const script = function () {
-            try {
-                $content
-                setupResourceBlocking();
-            } catch (error) {
-                console.error('[AdBlocker] Setup error:', error);
-            }
-            removeListeners();
-        }
-
-        if (document.readyState == 'interactive' || document.readyState == 'complete') {
-            script();
-        } else {
-            addListeners();
-        }
-    })();
-  ''';
+/// Escapes a string for use in JavaScript string literals.
+String _escapeJs(String s) {
+  return s
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "\\'")
+      .replaceAll('\n', '\\n')
+      .replaceAll('\r', '\\r');
 }
