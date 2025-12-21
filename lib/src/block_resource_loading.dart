@@ -1,3 +1,5 @@
+// ignore_for_file: lines_longer_than_80_chars, use_raw_strings
+
 import 'dart:convert';
 import 'package:adblocker_manager/adblocker_manager.dart';
 
@@ -23,6 +25,7 @@ String getResourceLoadingBlockerScript(List<ResourceRule> rules) {
         }
         // Complex rule
         // t: types, d: domains, i: important, tp: thirdParty
+        // ignore: omit_local_variable_types
         final Map<String, dynamic> map = {'u': r.url};
         if (r.resourceTypes != null) map['t'] = r.resourceTypes;
         if (r.domains != null) map['d'] = r.domains;

@@ -118,7 +118,6 @@ class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
     return controller.runJavaScript(script);
   }
 
-
   @override
   Set<String> get allowedDomains => _adBlockManager.allowedDomains;
 
@@ -133,7 +132,6 @@ class AdBlockerWebviewControllerImpl implements AdBlockerWebviewController {
   @override
   bool isAllowedDomain(String urlOrDomain) =>
       _adBlockManager.isAllowedDomain(urlOrDomain);
-
 
   @override
   Set<String> get blockedDomains => _adBlockManager.blockedDomains;

@@ -1,3 +1,5 @@
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'package:adblocker_core/src/adblocker_filter.dart';
 import 'package:adblocker_core/src/lru_cache.dart';
 import 'package:adblocker_core/src/parser/css_rules_parser.dart';

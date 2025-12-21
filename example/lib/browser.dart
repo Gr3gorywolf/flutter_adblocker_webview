@@ -30,6 +30,7 @@ class _BrowserState extends State<Browser> {
           child: AdBlockerWebview(
             url: Uri.parse(widget.url),
             adBlockerWebviewController: widget.controller,
+            userAgent: 'MyCustomApp/1.0 (Custom User Agent)',
             onProgress: (progress) {
               setState(() {
                 _progress = progress;

@@ -20,6 +20,7 @@ class AdBlockerWebview extends StatefulWidget {
     required this.shouldBlockAds,
     this.url,
     this.initialHtmlData,
+    this.userAgent,
     this.onLoadStart,
     this.onLoadFinished,
     this.onProgress,
@@ -42,6 +43,10 @@ class AdBlockerWebview extends StatefulWidget {
   /// The initial HTML content to load in the webview.
   /// Either this or [url] must be provided, but not both.
   final String? initialHtmlData;
+
+  /// Custom user agent string for the webview.
+  /// If not provided, a default user agent will be used based on the platform.
+  final String? userAgent;
 
   /// Required: The controller for [AdBlockerWebview].
   /// See more at [AdBlockerWebviewController].
@@ -199,6 +204,11 @@ class _AdBlockerWebviewState extends State<AdBlockerWebview> {
   }
 
   String _getUserAgent() {
+    // Return custom user agent if provided
+    if (widget.userAgent != null && widget.userAgent!.isNotEmpty) {
+      return widget.userAgent!;
+    }
+
     final osVersion = Platform.operatingSystemVersion;
 
     if (Platform.isAndroid) {

@@ -1,3 +1,16 @@
+## 2.3.0
+### New Features
+* **Custom User Agent**: Set a custom user agent for the webview
+  * Configure via 
+  ```dart
+  AdBlockerWebview(
+  adBlockerWebviewController: controller,
+  shouldBlockAds: true,
+  url: Uri.parse('https://example.com'),
+  userAgent: 'MyCustomApp/1.0 (Custom User Agent)',
+  // ... other parameters
+)```
+
 ## 2.2.0
 
 **Breaking Changes**

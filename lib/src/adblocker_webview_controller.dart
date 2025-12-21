@@ -97,7 +97,6 @@ abstract interface class AdBlockerWebviewController
   /// Checks if a domain is in the whitelist
   bool isAllowedDomain(String urlOrDomain);
 
-
   /// Returns the set of blocked domains (custom block list)
   Set<String> get blockedDomains;
 
@@ -113,7 +112,6 @@ abstract interface class AdBlockerWebviewController
 
   /// Checks if a domain is in the custom block list
   bool isBlockedDomain(String urlOrDomain);
-
 
   /// Returns the blocking statistics
   BlockingStatistics get statistics;
